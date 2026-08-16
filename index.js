@@ -127,10 +127,11 @@ function runnerConfig(snap) {
 
 export function apply(ctx, config) {
   const Logger = ctx.logger;
+  const ts = () => new Date().toISOString();
   const log = {
-    info: (m) => { console.log(`[hb] ${m}`); try { Logger?.info?.(m); } catch {} },
-    warn: (m) => { console.warn(`[hb:warn] ${m}`); try { Logger?.warn?.(m); } catch {} },
-    error: (m) => { console.error(`[hb:err] ${m}`); try { Logger?.error?.(m); } catch {} },
+    info: (m) => { console.log(`[${ts()}] [hb] ${m}`); try { Logger?.info?.(m); } catch {} },
+    warn: (m) => { console.warn(`[${ts()}] [hb:warn] ${m}`); try { Logger?.warn?.(m); } catch {} },
+    error: (m) => { console.error(`[${ts()}] [hb:err] ${m}`); try { Logger?.error?.(m); } catch {} },
   };
 
   // 注册 schema + 拿 scope（配置落盘 settings.yaml 的 heartbeat 段）。
