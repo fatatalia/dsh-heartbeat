@@ -1,0 +1,5 @@
+# dsh-heartbeat bundle patch
+# 插入 host 插件行：注册 message 工具 + 心跳循环 + 配置 remote。
+- insert:
+    - id: dsh-heartbeat
+      name: dsh-heartbeat

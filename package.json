@@ -1,0 +1,39 @@
+{
+  "name": "dsh-heartbeat",
+  "version": "0.1.0",
+  "private": true,
+  "description": "dsh heartbeat plugin: periodic proactive checks + message tool (send iMessage) + settings UI. Independent of the iMessage gateway.",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "lib",
+    "cordis.patch.yml"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-api-remotes"
+      ],
+      "platform": "web"
+    }
+  },
+  "peerDependencies": {
+    "react": "^18.2.0",
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-typert-protocol": ">=0.1.0-rc.6",
+    "@deepseek-ai/schemastery": ">=3.18.0"
+  }
+}
