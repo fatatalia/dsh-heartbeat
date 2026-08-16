@@ -90,7 +90,7 @@ class HeartbeatService extends TypertRemoteService {
     return {
       enabled: snap?.enabled ?? true,
       intervalSec: snap?.intervalSec ?? 1800,
-      workspace: snap?.workspace ?? join(homedir(), "dsh", "mayacode"),
+      workspace: snap?.workspace ?? join(homedir(), "dsh", "default"),
       quietStart: snap?.quietStart ?? 22,
       quietEnd: snap?.quietEnd ?? 7,
       writable: true,
@@ -118,7 +118,7 @@ class HeartbeatService extends TypertRemoteService {
 function runnerConfig(snap) {
   return {
     enabled: snap?.enabled ?? true,
-    workspace: snap?.workspace ?? join(homedir(), "dsh", "mayacode"),
+    workspace: snap?.workspace ?? join(homedir(), "dsh", "default"),
     intervalSec: snap?.intervalSec ?? 1800,
     quietStart: snap?.quietStart ?? 22,
     quietEnd: snap?.quietEnd ?? 7,
@@ -138,7 +138,7 @@ export function apply(ctx, config) {
     base: {
       enabled: true,
       intervalSec: 1800,
-      workspace: join(homedir(), "dsh", "mayacode"),
+      workspace: join(homedir(), "dsh", "default"),
       quietStart: 22,
       quietEnd: 7,
     },

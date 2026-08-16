@@ -22,7 +22,7 @@ timer 循环（每 N 秒，可配）
 |---|---|---|
 | 启用心跳 | 总开关 | true |
 | 心跳间隔（秒） | 每 N 秒检查一次该不该心跳 | 1800 |
-| 心跳工作区路径 | 心跳会话 cwd（读哪的 HEARTBEAT.md） | `~/dsh/mayacode` |
+| 心跳工作区路径 | 心跳会话 cwd（读哪的 HEARTBEAT.md） | `~/dsh/default` |
 | 静默时段开始/结束（时） | 该时段不自动心跳 | 22 / 7 |
 | **立即心跳一次** | 手动触发（忽略静默） | 按钮 |
 
@@ -45,7 +45,7 @@ dsh-heartbeat/
 - 心跳/法塔要发消息就调它。
 
 ## 心跳工作区资源
-心跳工作区（mayacode）需有 `HEARTBEAT.md`（检查清单）+ 相关监控脚本（`scripts/`）+ 技能（`skills/`）。
+心跳工作区（如 ~/dsh/default）需有 `HEARTBEAT.md`（检查清单）+ 相关监控脚本（`scripts/`）+ 技能（`skills/`）。
 
 ## 说明
 - 自动心跳 `every` 间隔最小建议 ≥30s；默认 1800s。
