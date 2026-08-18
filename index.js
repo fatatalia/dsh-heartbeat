@@ -15,7 +15,7 @@ import { HeartbeatRunner } from "./lib/heartbeat-core.mjs";
 export const name = "dsh-heartbeat";
 
 // 配置 remote（typert/settings）+ 心跳（agents/agentPresets/sessions/workspaceRegistry/timer）。
-export const inject = ["typert", "settings", "agents", "agentDefaultModel", "agentPresets", "sessions", "workspaceRegistry", "timer"];
+export const inject = ["typert", "settings", "agents", "agentDefaultModel", "agentPresets", "sessions", "workspaceRegistry", "timer", "llm"];
 
 // 插件自身 config（settingsPath 指向 $DSH_HOME/settings.yaml）。
 export const Config = z.object({
@@ -29,6 +29,8 @@ const HeartbeatSchema = z.object({
   workspace: z.string().required(),
   quietStart: z.number(),
   quietEnd: z.number(),
+  provider: z.string(),
+  model: z.string(),
 });
 
 // ── Typert wire schemas（宽松 parse） ───────────────────────────────────────
@@ -53,6 +55,26 @@ const MANIFEST = {
       invocation: { kind: "direct" },
       parameters: [],
       result: { mode: "strict", typeSymbol: "dsh-heartbeat#HeartbeatConfig", schema: getResultSchema },
+    },
+    {
+      id: "dsh-heartbeat#heartbeat/listProviders",
+      service: "heartbeat",
+      namespace: "heartbeat",
+      method: "listProviders",
+      invocation: { kind: "direct" },
+      parameters: [],
+      result: { mode: "strict", typeSymbol: "dsh-heartbeat#ProviderList", schema: getResultSchema },
+    },
+    {
+      id: "dsh-heartbeat#heartbeat/listModels",
+      service: "heartbeat",
+      namespace: "heartbeat",
+      method: "listModels",
+      invocation: { kind: "direct" },
+      parameters: [
+        { name: "payload", wire: "payload", source: "json", codec: { mode: "strict", typeSymbol: "dsh-heartbeat#ProviderParam", schema: getResultSchema } },
+      ],
+      result: { mode: "strict", typeSymbol: "dsh-heartbeat#ModelList", schema: getResultSchema },
     },
     {
       id: "dsh-heartbeat#heartbeat/setConfig",
@@ -83,7 +105,22 @@ class HeartbeatService extends TypertRemoteService {
   constructor(ctx, scope) {
     super(ctx, "heartbeat");
     this.scope = scope;
+    this.llm = ctx.get("llm");
     this.runner = null; // apply 中注入
+  }
+
+  /** 可用 provider 目录。返回裸值，Typert 自动包装 ok/value。 */
+  async listProviders() {
+    const list = await this.llm?.listProviders?.() ?? [];
+    return list.map((p) => ({ id: p.provider ?? p.id, name: p.name ?? p.provider ?? p.id }));
+  }
+
+  /** 指定 provider 的模型列表。 */
+  async listModels(payload) {
+    const provider = typeof payload?.provider === "string" ? payload.provider : "";
+    if (!provider) throw new Error("provider 必填");
+    const list = await this.llm?.listModels?.(provider) ?? [];
+    return list.map((m) => ({ id: m.id, name: m.name ?? m.id }));
   }
   getConfig() {
     const snap = this.scope.get();
@@ -93,12 +130,14 @@ class HeartbeatService extends TypertRemoteService {
       workspace: snap?.workspace ?? join(homedir(), "dsh", "default"),
       quietStart: snap?.quietStart ?? 22,
       quietEnd: snap?.quietEnd ?? 7,
+      provider: typeof snap?.provider === "string" ? snap.provider : "",
+      model: typeof snap?.model === "string" ? snap.model : "",
       writable: true,
     };
   }
   async setConfig(payload) {
     const patch = {};
-    for (const k of ["enabled", "intervalSec", "workspace", "quietStart", "quietEnd"]) {
+    for (const k of ["enabled", "intervalSec", "workspace", "quietStart", "quietEnd", "provider", "model"]) {
       if (payload?.[k] !== undefined) patch[k] = payload[k];
     }
     if (Object.keys(patch).length === 0) return { ok: true };
@@ -122,6 +161,8 @@ function runnerConfig(snap) {
     intervalSec: snap?.intervalSec ?? 1800,
     quietStart: snap?.quietStart ?? 22,
     quietEnd: snap?.quietEnd ?? 7,
+    provider: typeof snap?.provider === "string" ? snap.provider : "",
+    model: typeof snap?.model === "string" ? snap.model : "",
   };
 }
 
@@ -178,7 +219,9 @@ export function apply(ctx, config) {
         || next.intervalSec !== currentConfig.intervalSec
         || next.workspace !== currentConfig.workspace
         || next.quietStart !== currentConfig.quietStart
-        || next.quietEnd !== currentConfig.quietEnd;
+        || next.quietEnd !== currentConfig.quietEnd
+        || next.provider !== currentConfig.provider
+        || next.model !== currentConfig.model;
       if (!changed) return;
       currentConfig = next;
       runner.applyConfig(next);
