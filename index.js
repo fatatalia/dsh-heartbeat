@@ -31,7 +31,7 @@ const HeartbeatSchema = z.object({
   quietEnd: z.number(),
   provider: z.string(),
   model: z.string(),
-  prompt: z.string().optional(),
+  prompt: z.string(),
 });
 
 // ── Typert wire schemas（宽松 parse） ───────────────────────────────────────
