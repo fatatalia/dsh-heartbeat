@@ -90,6 +90,7 @@ window.__ModuleLoader__.load({
         Promise.resolve().then(() => setConfig({
           enabled: !!cfg.enabled, intervalSec: cfg.intervalSec, workspace: cfg.workspace,
           quietStart: cfg.quietStart, quietEnd: cfg.quietEnd, provider: cfg.provider, model: cfg.model,
+          prompt: typeof cfg.prompt === "string" ? cfg.prompt : "",
         })).then(() => { setSaved(true); setTimeout(() => setSaved(false), 1500); }).catch((e) => console.error("heartbeat save failed", e));
       };
 
@@ -108,6 +109,14 @@ window.__ModuleLoader__.load({
         ] }),
         S.jsx(NumField, { label: "静默时段开始（时）", value: cfg.quietStart, min: 0, max: 23, onChange: (v) => set("quietStart", v), disabled: !writable }),
         S.jsx(NumField, { label: "静默时段结束（时）", value: cfg.quietEnd, min: 0, max: 23, onChange: (v) => set("quietEnd", v), disabled: !writable }),
+        S.jsxs("div", { style: { margin: "10px 0", display: "flex", flexDirection: "column", gap: 6 }, children: [
+          S.jsx("label", { style: { fontWeight: 500 }, children: "心跳提示词（留空用默认）" }),
+          S.jsx("textarea", { value: cfg.prompt ?? "", disabled: !writable, rows: 4,
+            onChange: (e) => set("prompt", e.target.value),
+            placeholder: "默认：这次是心跳（heartbeat）。请读取当前工作区的 HEARTBEAT.md（如果存在），并严格按照其中的检查清单与发送要求执行。若无需发送：保持静默，仅回复 HEARTBEAT_OK。",
+            style: { width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid var(--dsw-alias-divider, #ddd)", fontFamily: "inherit", fontSize: 13, resize: "vertical" } }),
+          S.jsx("span", { style: { color: "var(--dsw-alias-label-secondary)", fontSize: 12 }, children: "自定义提示词会替代默认值；建议保留「读取 HEARTBEAT.md 并严格照做」的核心指令。" }),
+        ] }),
         S.jsxs("div", { style: { margin: "10px 0", display: "flex", alignItems: "center", gap: 10 }, children: [
           S.jsx("label", { style: { flex: "0 0 180px", fontWeight: 500 }, children: "Provider" }),
           S.jsx("select", { value: cfg.provider ?? "", disabled: !writable, onChange: (e) => { set("provider", e.target.value); set("model", ""); }, style: { flex: 1, padding: "4px 8px", borderRadius: 6, border: "1px solid var(--dsw-alias-divider, #ddd)" }, children: [

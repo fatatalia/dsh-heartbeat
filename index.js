@@ -31,6 +31,7 @@ const HeartbeatSchema = z.object({
   quietEnd: z.number(),
   provider: z.string(),
   model: z.string(),
+  prompt: z.string().optional(),
 });
 
 // ── Typert wire schemas（宽松 parse） ───────────────────────────────────────
@@ -132,12 +133,13 @@ class HeartbeatService extends TypertRemoteService {
       quietEnd: snap?.quietEnd ?? 7,
       provider: typeof snap?.provider === "string" ? snap.provider : "",
       model: typeof snap?.model === "string" ? snap.model : "",
+      prompt: typeof snap?.prompt === "string" ? snap.prompt : "",
       writable: true,
     };
   }
   async setConfig(payload) {
     const patch = {};
-    for (const k of ["enabled", "intervalSec", "workspace", "quietStart", "quietEnd", "provider", "model"]) {
+    for (const k of ["enabled", "intervalSec", "workspace", "quietStart", "quietEnd", "provider", "model", "prompt"]) {
       if (payload?.[k] !== undefined) patch[k] = payload[k];
     }
     if (Object.keys(patch).length === 0) return { ok: true };
@@ -163,6 +165,7 @@ function runnerConfig(snap) {
     quietEnd: snap?.quietEnd ?? 7,
     provider: typeof snap?.provider === "string" ? snap.provider : "",
     model: typeof snap?.model === "string" ? snap.model : "",
+    prompt: typeof snap?.prompt === "string" ? snap.prompt : "",
   };
 }
 
