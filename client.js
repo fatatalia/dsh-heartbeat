@@ -91,7 +91,7 @@ window.__ModuleLoader__.load({
           enabled: !!cfg.enabled, intervalSec: cfg.intervalSec, workspace: cfg.workspace,
           quietStart: cfg.quietStart, quietEnd: cfg.quietEnd, provider: cfg.provider, model: cfg.model,
           prompt: typeof cfg.prompt === "string" ? cfg.prompt : "",
-          stepTimeoutMs: typeof cfg.stepTimeoutMs === "number" ? cfg.stepTimeoutMs : 0,
+          stepTimeoutSec: typeof cfg.stepTimeoutSec === "number" ? cfg.stepTimeoutSec : 0,
         })).then(() => { setSaved(true); setTimeout(() => setSaved(false), 1500); }).catch((e) => console.error("heartbeat save failed", e));
       };
 
@@ -110,7 +110,7 @@ window.__ModuleLoader__.load({
         ] }),
         S.jsx(NumField, { label: "静默时段开始（时）", value: cfg.quietStart, min: 0, max: 23, onChange: (v) => set("quietStart", v), disabled: !writable }),
         S.jsx(NumField, { label: "静默时段结束（时）", value: cfg.quietEnd, min: 0, max: 23, onChange: (v) => set("quietEnd", v), disabled: !writable }),
-        S.jsx(NumField, { label: "单步超时（ms）", value: cfg.stepTimeoutMs ?? 0, min: 0, onChange: (v) => set("stepTimeoutMs", v), disabled: !writable, hint: "0 = 不限制（默认）。单步超过该时长强制中断" }),
+        S.jsx(NumField, { label: "单步超时（秒）", value: cfg.stepTimeoutSec ?? 0, min: 0, onChange: (v) => set("stepTimeoutSec", v), disabled: !writable, hint: "0 = 不限制（默认）。单步超过该秒数强制中断" }),
         S.jsxs("div", { style: { margin: "10px 0", display: "flex", flexDirection: "column", gap: 6 }, children: [
           S.jsx("label", { style: { fontWeight: 500 }, children: "心跳提示词（留空用默认）" }),
           S.jsx("textarea", { value: cfg.prompt ?? "", disabled: !writable, rows: 4,

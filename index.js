@@ -32,8 +32,8 @@ const HeartbeatSchema = z.object({
   provider: z.string(),
   model: z.string(),
   prompt: z.string(),
-  /** turn 级单步超时（ms）：step 超过该时长被 dsh-turn-guard 强制 cancel；不配/0 = 不限制（默认）。 */
-  stepTimeoutMs: z.number(),
+  /** turn 级单步超时（秒）：step 超过该时长被 dsh-turn-guard 强制 cancel；不配/0 = 不限制（默认）。 */
+  stepTimeoutSec: z.number(),
 });
 
 // ── Typert wire schemas（宽松 parse） ───────────────────────────────────────
@@ -136,13 +136,13 @@ class HeartbeatService extends TypertRemoteService {
       provider: typeof snap?.provider === "string" ? snap.provider : "",
       model: typeof snap?.model === "string" ? snap.model : "",
       prompt: typeof snap?.prompt === "string" ? snap.prompt : "",
-      stepTimeoutMs: typeof snap?.stepTimeoutMs === "number" && snap.stepTimeoutMs > 0 ? snap.stepTimeoutMs : 0,
+      stepTimeoutSec: typeof snap?.stepTimeoutSec === "number" && snap.stepTimeoutSec > 0 ? snap.stepTimeoutSec : 0,
       writable: true,
     };
   }
   async setConfig(payload) {
     const patch = {};
-    for (const k of ["enabled", "intervalSec", "workspace", "quietStart", "quietEnd", "provider", "model", "prompt", "stepTimeoutMs"]) {
+    for (const k of ["enabled", "intervalSec", "workspace", "quietStart", "quietEnd", "provider", "model", "prompt", "stepTimeoutSec"]) {
       if (payload?.[k] !== undefined) patch[k] = payload[k];
     }
     if (Object.keys(patch).length === 0) return { ok: true };
@@ -169,7 +169,7 @@ function runnerConfig(snap) {
     provider: typeof snap?.provider === "string" ? snap.provider : "",
     model: typeof snap?.model === "string" ? snap.model : "",
     prompt: typeof snap?.prompt === "string" ? snap.prompt : "",
-    stepTimeoutMs: typeof snap?.stepTimeoutMs === "number" && snap.stepTimeoutMs > 0 ? snap.stepTimeoutMs : 0,
+    stepTimeoutSec: typeof snap?.stepTimeoutSec === "number" && snap.stepTimeoutSec > 0 ? snap.stepTimeoutSec : 0,
   };
 }
 
