@@ -86,11 +86,19 @@ window.__ModuleLoader__.load({
       const writable = cfg.writable;
       const set = (field, v) => setCfg((c) => ({ ...c, [field]: v }));
 
+      // 思考等级下拉：优先用所选模型自报的支持档位（listModels 附带的 efforts），
+      // 模型未选/能力未知时回落标准五档。
+      const selectedModel = (models || []).find((m) => m.id === cfg.model);
+      const effortOptions = Array.isArray(selectedModel?.efforts) && selectedModel.efforts.length > 0
+        ? selectedModel.efforts
+        : ["off", "low", "medium", "high", "max"];
+
       const save = () => {
         Promise.resolve().then(() => setConfig({
           enabled: !!cfg.enabled, intervalSec: cfg.intervalSec, workspace: cfg.workspace,
           quietStart: cfg.quietStart, quietEnd: cfg.quietEnd, provider: cfg.provider, model: cfg.model,
           prompt: typeof cfg.prompt === "string" ? cfg.prompt : "",
+          reasoningEffort: typeof cfg.reasoningEffort === "string" ? cfg.reasoningEffort : "high",
           stepTimeoutSec: typeof cfg.stepTimeoutSec === "number" ? cfg.stepTimeoutSec : 0,
         })).then(() => { setSaved(true); setTimeout(() => setSaved(false), 1500); }).catch((e) => console.error("heartbeat save failed", e));
       };
@@ -133,6 +141,14 @@ window.__ModuleLoader__.load({
             ...(models || []).map((m) => S.jsx("option", { key: m.id, value: m.id, children: m.name })),
           ] }),
         ] }),
+        S.jsxs("div", { style: { margin: "10px 0", display: "flex", alignItems: "center", gap: 10 }, children: [
+          S.jsx("label", { style: { flex: "0 0 180px", fontWeight: 500 }, children: "思考等级" }),
+          S.jsx("select", { value: cfg.reasoningEffort ?? "", disabled: !writable, onChange: (e) => set("reasoningEffort", e.target.value), style: { flex: 1, padding: "4px 8px", borderRadius: 6, border: "1px solid var(--dsw-alias-divider, #ddd)" }, children: [
+            S.jsx("option", { value: "", children: "（provider 默认）" }),
+            ...effortOptions.map((lvl) => S.jsx("option", { key: lvl, value: lvl, children: lvl })),
+          ] }),
+          S.jsx("span", { style: { color: "var(--dsw-alias-label-tertiary)", fontSize: 12 }, children: effortHint(selectedModel) }),
+        ] }),
         S.jsxs("div", { style: { marginTop: 16, display: "flex", gap: 8 }, children: [
           S.jsx("button", { type: "button", disabled: !writable, onClick: save, style: { padding: "6px 14px", borderRadius: 8, fontWeight: 500, cursor: writable ? "pointer" : "default" }, children: saved ? "✓ 已保存" : "保存" }),
           S.jsx("button", { type: "button", onClick: () => { setTriggering(true); Promise.resolve().then(() => trigger()).then(() => { setTriggering(false); setTriggered(true); setTimeout(() => setTriggered(false), 3000); }).catch(() => setTriggering(false)); }, style: { padding: "6px 14px", borderRadius: 8, cursor: "pointer" }, children: triggeringText(triggering) }),
@@ -144,6 +160,11 @@ window.__ModuleLoader__.load({
       ] });
     }
     function triggeringText(busy) { return busy ? "触发电…" : "立即心跳一次"; }
+    /** 思考等级提示：显示所选模型的 provider 默认档（无元数据时给通用说明）。 */
+    function effortHint(model) {
+      if (model?.defaultEffort) return `模型默认：${model.defaultEffort}；仅影响心跳会话的推理深度`;
+      return "默认 high；等级越高越慢越费配额，仅影响心跳会话";
+    }
 
     const inject = ["slots", "remote"];
 

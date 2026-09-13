@@ -32,6 +32,12 @@ const HeartbeatSchema = z.object({
   provider: z.string(),
   model: z.string(),
   prompt: z.string(),
+  /**
+   * 思考等级：off/low/medium/high/max，空串 = 跟随 provider 默认。
+   * 2026-09-11 加：此前心跳的 reasoningEffort 由 provider 层 `reasoning: high` 隐式兜底，
+   * 设置页无从调整；现在显式配置、默认 high、保存即热生效。
+   */
+  reasoningEffort: z.string(),
   /** turn 级单步超时（秒）：step 超过该时长被 dsh-turn-guard 强制 cancel；不配/0 = 不限制（默认）。 */
   stepTimeoutSec: z.number(),
 });
@@ -118,12 +124,32 @@ class HeartbeatService extends TypertRemoteService {
     return list.map((p) => ({ id: p.provider ?? p.id, name: p.name ?? p.provider ?? p.id }));
   }
 
-  /** 指定 provider 的模型列表。 */
+  /**
+   * 指定 provider 的模型列表。附带给每个模型带上它支持的思考等级（设置页下拉用）。
+   * llm.listModels 只回 id/name，能力元数据要走 resolveModelInfo；逐个查询是本地目录
+   * 查询（无网络），失败则该项不带 efforts（客户端回落标准五档）。
+   */
   async listModels(payload) {
     const provider = typeof payload?.provider === "string" ? payload.provider : "";
     if (!provider) throw new Error("provider 必填");
     const list = await this.llm?.listModels?.(provider) ?? [];
-    return list.map((m) => ({ id: m.id, name: m.name ?? m.id }));
+    const resolve = this.llm?.resolveModelInfo;
+    const out = [];
+    for (const m of list) {
+      const item = { id: m.id, name: m.name ?? m.id };
+      if (typeof resolve === "function") {
+        try {
+          const info = await resolve.call(this.llm, provider, m.id);
+          const reasoning = info?.reasoning;
+          if (reasoning !== void 0) {
+            item.efforts = reasoning.efforts.map((e) => e.id);
+            if (reasoning.defaultEffort !== void 0) item.defaultEffort = reasoning.defaultEffort;
+          }
+        } catch { /* 能力未知：留空，客户端用标准档位兜底 */ }
+      }
+      out.push(item);
+    }
+    return out;
   }
   getConfig() {
     const snap = this.scope.get();
@@ -136,13 +162,14 @@ class HeartbeatService extends TypertRemoteService {
       provider: typeof snap?.provider === "string" ? snap.provider : "",
       model: typeof snap?.model === "string" ? snap.model : "",
       prompt: typeof snap?.prompt === "string" ? snap.prompt : "",
+      reasoningEffort: typeof snap?.reasoningEffort === "string" ? snap.reasoningEffort : "high",
       stepTimeoutSec: typeof snap?.stepTimeoutSec === "number" && snap.stepTimeoutSec > 0 ? snap.stepTimeoutSec : 0,
       writable: true,
     };
   }
   async setConfig(payload) {
     const patch = {};
-    for (const k of ["enabled", "intervalSec", "workspace", "quietStart", "quietEnd", "provider", "model", "prompt", "stepTimeoutSec"]) {
+    for (const k of ["enabled", "intervalSec", "workspace", "quietStart", "quietEnd", "provider", "model", "prompt", "reasoningEffort", "stepTimeoutSec"]) {
       if (payload?.[k] !== undefined) patch[k] = payload[k];
     }
     if (Object.keys(patch).length === 0) return { ok: true };
@@ -169,6 +196,7 @@ function runnerConfig(snap) {
     provider: typeof snap?.provider === "string" ? snap.provider : "",
     model: typeof snap?.model === "string" ? snap.model : "",
     prompt: typeof snap?.prompt === "string" ? snap.prompt : "",
+    reasoningEffort: typeof snap?.reasoningEffort === "string" ? snap.reasoningEffort : "high",
     stepTimeoutSec: typeof snap?.stepTimeoutSec === "number" && snap.stepTimeoutSec > 0 ? snap.stepTimeoutSec : 0,
   };
 }
@@ -196,6 +224,7 @@ export function apply(ctx, config) {
       workspace: join(homedir(), "dsh", "default"),
       quietStart: 22,
       quietEnd: 7,
+      reasoningEffort: "high",
     },
   });
   const service = new HeartbeatService(ctx, scope);
@@ -209,6 +238,7 @@ export function apply(ctx, config) {
     defaultModel: ctx.get("agentDefaultModel"),
     workspaceRegistry: ctx.get("workspaceRegistry"),
     timer: ctx.get("timer"),
+    llm: ctx.get("llm"),
     log,
   });
   service.runner = runner;
@@ -222,17 +252,23 @@ export function apply(ctx, config) {
     try {
       const snap = scope.get();
       const next = runnerConfig(snap);
+      // 逐字段比较：runner 的 timer 闭包捕获的是启动时那份 config，任何字段变了都得
+      // applyConfig 重起循环才生效。此前漏了 prompt / stepTimeoutSec（改提示词不生效的
+      // 隐性 bug），2026-09-11 补上 reasoningEffort 时一并补齐。
       const changed = next.enabled !== currentConfig.enabled
         || next.intervalSec !== currentConfig.intervalSec
         || next.workspace !== currentConfig.workspace
         || next.quietStart !== currentConfig.quietStart
         || next.quietEnd !== currentConfig.quietEnd
         || next.provider !== currentConfig.provider
-        || next.model !== currentConfig.model;
+        || next.model !== currentConfig.model
+        || next.prompt !== currentConfig.prompt
+        || next.reasoningEffort !== currentConfig.reasoningEffort
+        || next.stepTimeoutSec !== currentConfig.stepTimeoutSec;
       if (!changed) return;
       currentConfig = next;
       runner.applyConfig(next);
-      log.info(`heartbeat: 配置已自动生效 enabled=${next.enabled} 间隔=${next.intervalSec}s 工作区=${next.workspace}`);
+      log.info(`heartbeat: 配置已自动生效 enabled=${next.enabled} 间隔=${next.intervalSec}s 工作区=${next.workspace} 思考等级=${next.reasoningEffort || "(provider 默认)"}`);
     } catch (e) {
       log.error(`heartbeat: watch 处理失败 ${e instanceof Error ? e.message : e}`);
     }
