@@ -2,6 +2,13 @@
 
 dsh 的**心跳插件**：定期触发法塔依工作区 `HEARTBEAT.md` 检查，由法塔**自行决定**是否主动发送 iMessage 给代码东。独立于 iMessage 网关插件。
 
+## dsh 版本兼容性
+
+**要求 dsh ≥ 0.1.7-rc.1**（已在 0.1.7-rc.1 实测通过）。
+
+- **`ctx.settings.register()` 已移除**（2026-09-24）：原 `heartbeat` settings namespace 并入插件 `Config`，可热改字段标 `.volatile()`，`.default()` 承担原 `base` 的运行时兜底；`inject` 去掉 `settings`。
+- **Typert strict codec 必须带 `create()` 工厂**（0.1.7 客户端校验）。
+
 ## 职责边界
 - **只做心跳节奏**：定时触发 → 创建独立会话 → 投心跳 prompt → 法塔决策 → 归档。
 - **不实现发送**：发消息由 iMessage 插件注册的全局 `message` 工具承担。心跳会话里的法塔要发时自然能调到它。

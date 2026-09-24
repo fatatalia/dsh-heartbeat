@@ -15,36 +15,40 @@ import { HeartbeatRunner } from "./lib/heartbeat-core.mjs";
 export const name = "dsh-heartbeat";
 
 // 配置 remote（typert/settings）+ 心跳（agents/agentPresets/sessions/workspaceRegistry/timer）。
-export const inject = ["typert", "settings", "agents", "agentDefaultModel", "agentPresets", "sessions", "workspaceRegistry", "timer", "llm"];
+export const inject = ["typert", "agents", "agentDefaultModel", "agentPresets", "sessions", "workspaceRegistry", "timer", "llm"];
 
 // 插件自身 config（settingsPath 指向 $DSH_HOME/settings.yaml）。
+//
+// 2026-09-24 适配 dsh 0.1.7：`ctx.settings.register()` 已被移除，原 `heartbeat`
+// settings namespace 的数据 schema 直接并入插件自己的 Config。带 `.volatile()` 的
+// 字段出现在设置页可热改；改动由 loader 直接提交进运行中的引用对象（不重载插件），
+// 并广播 `loader/volatile-update`。`.default()` 等价于原来的 `base`（运行时兜底，
+// 不写入磁盘）。profile 条目 id 必须与插件名一致（`dsh-heartbeat`）。
 export const Config = z.object({
   settingsPath: z.string().default(join(homedir(), ".dsh", "settings.yaml")),
-});
-
-/** `heartbeat` settings namespace 数据 schema。 */
-const HeartbeatSchema = z.object({
-  enabled: z.boolean(),
-  intervalSec: z.number(),
-  workspace: z.string().required(),
-  quietStart: z.number(),
-  quietEnd: z.number(),
-  provider: z.string(),
-  model: z.string(),
-  prompt: z.string(),
+  enabled: z.boolean().default(true).volatile(),
+  intervalSec: z.number().default(1800).volatile(),
+  workspace: z.string().default(join(homedir(), "dsh", "default")).volatile(),
+  quietStart: z.number().default(22).volatile(),
+  quietEnd: z.number().default(7).volatile(),
+  provider: z.string().default("").volatile(),
+  model: z.string().default("").volatile(),
+  prompt: z.string().default("").volatile(),
   /**
    * 思考等级：off/low/medium/high/max，空串 = 跟随 provider 默认。
    * 2026-09-11 加：此前心跳的 reasoningEffort 由 provider 层 `reasoning: high` 隐式兜底，
    * 设置页无从调整；现在显式配置、默认 high、保存即热生效。
    */
-  reasoningEffort: z.string(),
+  reasoningEffort: z.string().default("high").volatile(),
   /** turn 级单步超时（秒）：step 超过该时长被 dsh-turn-guard 强制 cancel；不配/0 = 不限制（默认）。 */
-  stepTimeoutSec: z.number(),
+  stepTimeoutSec: z.number().default(0).volatile(),
 });
 
 // ── Typert wire schemas（宽松 parse） ───────────────────────────────────────
 function parseObj() {
-  return { parse(value) { if (typeof value !== "object" || value === null) throw new Error("expected object"); return value; } };
+  // 0.1.7：typert strict codec 必须有 create() 工厂（gateway 走 codec.create().parse(v)）。
+  const parse = (value) => { if (typeof value !== "object" || value === null) throw new Error("expected object"); return value; };
+  return { parse, create: () => ({ parse }) };
 }
 const getResultSchema = parseObj();
 const setPayloadSchema = parseObj();
@@ -63,7 +67,7 @@ const MANIFEST = {
       method: "getConfig",
       invocation: { kind: "direct" },
       parameters: [],
-      result: { mode: "strict", typeSymbol: "dsh-heartbeat#HeartbeatConfig", schema: getResultSchema },
+      result: { mode: "strict", typeSymbol: "dsh-heartbeat#HeartbeatConfig", schema: getResultSchema, create: () => getResultSchema },
     },
     {
       id: "dsh-heartbeat#heartbeat/listProviders",
@@ -72,7 +76,7 @@ const MANIFEST = {
       method: "listProviders",
       invocation: { kind: "direct" },
       parameters: [],
-      result: { mode: "strict", typeSymbol: "dsh-heartbeat#ProviderList", schema: getResultSchema },
+      result: { mode: "strict", typeSymbol: "dsh-heartbeat#ProviderList", schema: getResultSchema, create: () => getResultSchema },
     },
     {
       id: "dsh-heartbeat#heartbeat/listModels",
@@ -81,9 +85,9 @@ const MANIFEST = {
       method: "listModels",
       invocation: { kind: "direct" },
       parameters: [
-        { name: "payload", wire: "payload", source: "json", codec: { mode: "strict", typeSymbol: "dsh-heartbeat#ProviderParam", schema: getResultSchema } },
+        { name: "payload", wire: "payload", source: "json", codec: { mode: "strict", typeSymbol: "dsh-heartbeat#ProviderParam", schema: getResultSchema, create: () => getResultSchema } },
       ],
-      result: { mode: "strict", typeSymbol: "dsh-heartbeat#ModelList", schema: getResultSchema },
+      result: { mode: "strict", typeSymbol: "dsh-heartbeat#ModelList", schema: getResultSchema, create: () => getResultSchema },
     },
     {
       id: "dsh-heartbeat#heartbeat/setConfig",
@@ -92,9 +96,9 @@ const MANIFEST = {
       method: "setConfig",
       invocation: { kind: "direct" },
       parameters: [
-        { name: "payload", wire: "payload", source: "json", codec: { mode: "strict", typeSymbol: "dsh-heartbeat#SetPayload", schema: setPayloadSchema } },
+        { name: "payload", wire: "payload", source: "json", codec: { mode: "strict", typeSymbol: "dsh-heartbeat#SetPayload", schema: setPayloadSchema, create: () => setPayloadSchema } },
       ],
-      result: { mode: "strict", typeSymbol: "dsh-heartbeat#SetResult", schema: setResultSchema },
+      result: { mode: "strict", typeSymbol: "dsh-heartbeat#SetResult", schema: setResultSchema, create: () => setResultSchema },
     },
     {
       id: "dsh-heartbeat#heartbeat/trigger",
@@ -103,7 +107,7 @@ const MANIFEST = {
       method: "trigger",
       invocation: { kind: "direct" },
       parameters: [],
-      result: { mode: "strict", typeSymbol: "dsh-heartbeat#TriggerResult", schema: setResultSchema },
+      result: { mode: "strict", typeSymbol: "dsh-heartbeat#TriggerResult", schema: setResultSchema, create: () => setResultSchema },
     },
   ],
   model: { services: [], events: [], objects: [] },
@@ -216,17 +220,34 @@ export function apply(ctx, config) {
     error: (m) => { console.error(`[${ts()}] [hb:err] ${m}`); try { Logger?.error?.(m); } catch {} },
   };
 
-  // 注册 schema + 拿 scope（配置落盘 settings.yaml 的 heartbeat 段）。
-  const scope = ctx.settings.register("heartbeat", HeartbeatSchema, {
-    base: {
-      enabled: true,
-      intervalSec: 1800,
-      workspace: join(homedir(), "dsh", "default"),
-      quietStart: 22,
-      quietEnd: 7,
-      reasoningEffort: "high",
+  // 0.1.7：配置即插件 Config 的 volatile 字段，不再有 settings scope。
+  // 这里适配出等价的 scope 外壳，语义与原来一致：
+  //   get()    → 读运行中的引用值（volatile 变更由 loader 直接写入引用，永远最新）
+  //   update() → 经 configEditor 写回当前 profile 的条目 config
+  //   watch()  → 监听 loader/volatile-update（配置热改时触发）
+  const scope = {
+    get: () => ({
+      enabled: config.enabled.get(),
+      intervalSec: config.intervalSec.get(),
+      workspace: config.workspace.get(),
+      quietStart: config.quietStart.get(),
+      quietEnd: config.quietEnd.get(),
+      provider: config.provider.get(),
+      model: config.model.get(),
+      prompt: config.prompt.get(),
+      reasoningEffort: config.reasoningEffort.get(),
+      stepTimeoutSec: config.stepTimeoutSec.get(),
+    }),
+    async update(patch) {
+      const editor = ctx.get("configEditor");
+      const entry = ctx.fiber?.entry;
+      if (!editor || entry === undefined) return;
+      await editor.edit(entry, (current) => ({ ...current, ...patch }));
     },
-  });
+    watch(cb) {
+      ctx.on("loader/volatile-update", () => { cb(); });
+    },
+  };
   const service = new HeartbeatService(ctx, scope);
   ctx.effect(() => ctx.typert.register(MANIFEST), "dsh-heartbeat: typert manifest");
 
@@ -244,6 +265,7 @@ export function apply(ctx, config) {
   service.runner = runner;
   // 初始：按当前配置启动。
   let currentConfig = runnerConfig(scope.get());
+  log.info(`heartbeat: 插件已加载（0.1.7 volatile 配置）enabled=${currentConfig.enabled} 间隔=${currentConfig.intervalSec}s 工作区=${currentConfig.workspace} 思考等级=${currentConfig.reasoningEffort || "(provider 默认)"}`);
   if (scope.get()?.enabled) runner.start(currentConfig);
   else log.info("heartbeat: enabled=false，未启动");
 

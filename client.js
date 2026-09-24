@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const S = require("react/jsx-runtime");
 
     const identity = (value) => value;
-    const codec = (symbol) => ({ mode: "strict", typeSymbol: symbol, schema: { parse: identity } });
+    const codec = (symbol) => ({ mode: "strict", typeSymbol: symbol, schema: { parse: identity }, create: () => ({ parse: identity }) });
 
     const CONTRIBUTION = {
       package: "dsh-heartbeat",
